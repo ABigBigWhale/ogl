@@ -52,7 +52,7 @@ static const GLfloat g_vertex_buffer_data[] = {
     1.0f, -1.0f, 1.0f};
 
 // One color for each vertex. They were generated randomly.
-static const GLfloat g_color_buffer_data[] = {
+static GLfloat s_color_buffer_data[] = {
     0.583f, 0.771f, 0.014f,
     0.609f, 0.115f, 0.436f,
     0.327f, 0.483f, 0.844f,
@@ -91,6 +91,7 @@ static const GLfloat g_color_buffer_data[] = {
     0.982f, 0.099f, 0.879f};
 
 static glm::mat4 GenerateMVP(float width, float height);
+static void RandomStepColor(GLfloat colors[], size_t size);
 
 int main(void) {
     // Initialise GLFW
@@ -152,7 +153,7 @@ int main(void) {
     GLuint colorbuffer;
     glGenBuffers(1, &colorbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(s_color_buffer_data), s_color_buffer_data, GL_STATIC_DRAW);
 
     // Create and compile our GLSL program from the shaders
     GLuint programID = LoadShaders("simple.vert", "simple.frag");
@@ -193,6 +194,12 @@ int main(void) {
         // 2nd attribute buffer: colors
         glEnableVertexAttribArray(1);
         glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+
+        // Step color randomly
+        RandomStepColor(s_color_buffer_data, sizeof(s_color_buffer_data) / sizeof(GLfloat));
+        glBufferData(
+            GL_ARRAY_BUFFER, sizeof(s_color_buffer_data), s_color_buffer_data, GL_STATIC_DRAW);
+
         glVertexAttribPointer(
             1,         // attribute. No particular reason for 1, but must match the layout in the
                        // shader.
@@ -238,4 +245,12 @@ static glm::mat4 GenerateMVP(float width, float height) {
     // Our ModelViewProjection : multiplication of our 3 matrices
     // Matrix multiplication is the other way around
     return Projection * View * Model;
+}
+
+static void RandomStepColor(GLfloat colors[], size_t size) {
+    int i;
+    for (i = 0; i < size; i++) {
+        GLfloat col = colors[i] + (rand() & 20 - 10) * 0.01f / 60;
+        colors[i] = (col < 0) ? 0.66f : (col > 1) ? 0.33f : col;
+    }
 }
