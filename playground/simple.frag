@@ -1,7 +1,8 @@
 #version 330 core
 
+// Interpolated values from the vertex shaders
+in vec3 fragmentColor;
+
 out vec3 color;
 
-void main() {
-    color = vec3(1, 0.4, 0.2);
-}
+void main() { color = fragmentColor; }
