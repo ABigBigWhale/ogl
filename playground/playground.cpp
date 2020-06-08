@@ -10,46 +10,7 @@ using namespace glm;
 
 #include <common/shader.hpp>
 
-// Vertices for a cube. Three consecutive floats give a 3D vertex; Three consecutive vertices give a
-// triangle. A cube has 6 faces with 2 triangles each, so this makes 6*2=12 triangles, and 12*3
-// vertices.
-static const GLfloat g_vertex_buffer_data[] = {
-    -1.0f, -1.0f, -1.0f,  // triangle 1 : begin
-    -1.0f, -1.0f, 1.0f,
-    -1.0f, 1.0f, 1.0f,  // triangle 1 : end
-    1.0f, 1.0f, -1.0f,  // triangle 2 : begin
-    -1.0f, -1.0f, -1.0f,
-    -1.0f, 1.0f, -1.0f,  // triangle 2 : end
-    1.0f, -1.0f, 1.0f,
-    -1.0f, -1.0f, -1.0f,
-    1.0f, -1.0f, -1.0f,
-    1.0f, 1.0f, -1.0f,
-    1.0f, -1.0f, -1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f, -1.0f,
-    1.0f, -1.0f, 1.0f,
-    -1.0f, -1.0f, 1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f, 1.0f, 1.0f,
-    -1.0f, -1.0f, 1.0f,
-    1.0f, -1.0f, 1.0f,
-    1.0f, 1.0f, 1.0f,
-    1.0f, -1.0f, -1.0f,
-    1.0f, 1.0f, -1.0f,
-    1.0f, -1.0f, -1.0f,
-    1.0f, 1.0f, 1.0f,
-    1.0f, -1.0f, 1.0f,
-    1.0f, 1.0f, 1.0f,
-    1.0f, 1.0f, -1.0f,
-    -1.0f, 1.0f, -1.0f,
-    1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f, -1.0f,
-    -1.0f, 1.0f, 1.0f,
-    1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f, 1.0f,
-    1.0f, -1.0f, 1.0f};
+#include "playground.hpp"
 
 // One color for each vertex. They were generated randomly.
 static GLfloat s_color_buffer_data[] = {
@@ -92,6 +53,7 @@ static GLfloat s_color_buffer_data[] = {
 
 static glm::mat4 GenerateMVP(float width, float height);
 static void RandomStepColor(GLfloat colors[], size_t size);
+static GLuint LoadBMP(const char *imgPath);
 
 int main(void) {
     // Initialise GLFW
@@ -142,25 +104,29 @@ int main(void) {
     // Dark blue background
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
 
-    // Initialize vertex buffer
+    // 0: Initialize vertex buffer
     GLuint vertexbuffer;
     glGenBuffers(1, &vertexbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data),
                  g_vertex_buffer_data, GL_STATIC_DRAW);
 
-    // Initialize color buffer
-    GLuint colorbuffer;
-    glGenBuffers(1, &colorbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(s_color_buffer_data), s_color_buffer_data, GL_STATIC_DRAW);
+    // 1: Initialize uv buffer
+    GLuint uvbuffer;
+    glGenBuffers(1, &uvbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(g_uv_buffer_data), g_uv_buffer_data, GL_STATIC_DRAW);
 
     // Create and compile our GLSL program from the shaders
     GLuint programID = LoadShaders("simple.vert", "simple.frag");
 
     // Get a handle for our "MVP" uniform
     // Only during the initialisation
-    GLuint MatrixID = glGetUniformLocation(programID, "MVP");
+    GLuint matrixID = glGetUniformLocation(programID, "mvp");
+
+    // Get a handle for our "myTextureSampler" uniform
+    GLuint texture = LoadBMP("uvtemplate.bmp");
+    GLuint textureID = glGetUniformLocation(programID, "textureSampler");
 
     do {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -176,7 +142,13 @@ int main(void) {
         // Send our transformation to the currently bound shader, in the "MVP" uniform
         // This is done in the main loop since each model will have a different MVP matrix (At least for the M part)
         mat4 mvp = GenerateMVP((float)width, (float)height);
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
+        glUniformMatrix4fv(matrixID, 1, GL_FALSE, &mvp[0][0]);
+
+        // Bind our texture in Texture Unit 0
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        // Set our "myTextureSampler" sampler to use Texture Unit 0
+        glUniform1i(textureID, 0);
 
         // 1st attribute buffer: vertices
         glEnableVertexAttribArray(0);
@@ -191,19 +163,13 @@ int main(void) {
             (void *)0  // array buffer offset
         );
 
-        // 2nd attribute buffer: colors
+        // 2nd attribute buffer: texture UV
         glEnableVertexAttribArray(1);
-        glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-
-        // Step color randomly
-        RandomStepColor(s_color_buffer_data, sizeof(s_color_buffer_data) / sizeof(GLfloat));
-        glBufferData(
-            GL_ARRAY_BUFFER, sizeof(s_color_buffer_data), s_color_buffer_data, GL_STATIC_DRAW);
-
+        glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
         glVertexAttribPointer(
             1,         // attribute. No particular reason for 1, but must match the layout in the
                        // shader.
-            3,         // size
+            2,         // size
             GL_FLOAT,  // type
             GL_FALSE,  // normalized?
             0,         // stride
@@ -214,6 +180,7 @@ int main(void) {
         // Starting from vertex 0; 3 vertices total -> 1 triangle
         glDrawArrays(GL_TRIANGLES, 0, 12 * 3);
         glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
 
         // Swap buffers
         glfwSwapBuffers(window);
@@ -253,4 +220,63 @@ static void RandomStepColor(GLfloat colors[], size_t size) {
         GLfloat col = colors[i] + (rand() & 20 - 10) * 0.01f / 60;
         colors[i] = (col < 0) ? 0.66f : (col > 1) ? 0.33f : col;
     }
+}
+
+static GLuint LoadBMP(const char *imgPath) {
+    // Data read from the header of the BMP file
+    // Each BMP file begins by a 54-bytes header
+    unsigned char header[54];
+    // Position in the file where the actual data begins
+    unsigned int dataPos;
+    unsigned int width, height;
+    unsigned int imageSize;  // = width*height*3
+    // Actual RGB data
+    unsigned char *data;
+
+    // Open the file
+    FILE *file = fopen(imgPath, "rb");
+    if (!file) {
+        printf("Image could not be opened\n");
+        return 0;
+    }
+
+    // If not 54 bytes read: problem
+    if (fread(header, 1, 54, file) != 54) {
+        printf("Not a correct BMP file\n");
+        return 0;
+    }
+
+    // Read attributes from the header
+    dataPos = *(int *)&(header[0x0A]);
+    width = *(int *)&(header[0x12]);
+    height = *(int *)&(header[0x16]);
+    imageSize = *(int *)&(header[0x22]);
+
+    // Some BMP files are misformatted, guess missing information
+    if (imageSize == 0) imageSize = width * height * 3;  // 3 : one byte for each Red, Green and Blue component
+    if (dataPos == 0) dataPos = 54;                      // The BMP header is done that way
+
+    // Create a buffer
+    data = new unsigned char[imageSize];
+
+    // Read the actual data from the file into the buffer
+    fread(data, 1, imageSize, file);
+
+    // Everything is in memory now, the file can be closed
+    fclose(file);
+
+    // Create one OpenGL texture
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    // "Bind" the newly created texture : all future texture functions will modify this texture
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // Give the image to OpenGL
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    return textureID;
 }
